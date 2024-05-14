@@ -81,6 +81,7 @@ function find_avg_frac_inf_alldata(simdatas, datatile)
 end
 
 
+
 function draw_misinformed_tile(betan::AbstractFloat, mult::Real, p_misinf_tile::Dict, N::Integer, tile_people::Dict, rng::AbstractRNG)
     p = convert(Float32, betan)
     betasall = fill(p, N)
@@ -99,6 +100,16 @@ function draw_misinformed_tile(betan::AbstractFloat, mult::Real, p_misinf_tile::
     ismisinf, betasall, stats
 end
 
+function draw_misinformed_homogen(betan::AbstractFloat, mult::Real, p_misinf::AbstractFloat,
+            N::Integer,  rng::AbstractRNG; beta_type=Float32)
+
+    ismisinf = rand(rng,N) .< p_misinf;
+    p=convert(beta_type, betan)
+    betasall = fill(p, N)
+    betasall[ismisinf] .= p*mult
+
+    ismisinf, betasall
+end
 function calc_tiles_infect_stats(tiles_idcs::Dict, infect_time::Vector{<:AbstractFloat})
     ## assuming that the indcs for each tile are the same as the graph (1:N)
     stats = NamedTuple[]
