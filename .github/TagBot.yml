@@ -1,3 +1,4 @@
+# put int .github/workflows/ when ready and remove the comment
 name: TagBot
 on:
   issue_comment:
