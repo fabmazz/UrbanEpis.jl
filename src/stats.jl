@@ -14,3 +14,12 @@ function find_avg_attack_rates_alldata(simdatas, datatile)
     dff = reduce(vcat,alldas)
     combine(groupby(dff,:tile_id), :frac_inf => mean => :mean_inf, :rel_att => mean), minfs
 end
+
+function tiles_misinfect_stats_full(misinfstats, tile_data)
+    mis_stats_shuff = reduce(vcat,misinfstats);
+    mean_misinf_shuff = combine(groupby(mis_stats_shuff,:tile_id), :n_misinf => mean => :mean_n_misinf)
+    mean_misinf_shuff = innerjoin(mean_misinf_shuff, tile_data, on="tile_id")
+    mean_misinf_shuff[!,:frac_misinf_mean] = @. mean_misinf_shuff.mean_n_misinf / mean_misinf_shuff.count
+
+    mean_misinf_shuff
+end

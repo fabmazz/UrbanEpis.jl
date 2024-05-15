@@ -83,15 +83,15 @@ end
 
 
 function draw_misinformed_tile(betan::AbstractFloat, mult::Real, p_misinf_tile::Dict, N::Integer, tile_people::Dict, rng::AbstractRNG)
-    p = convert(Float32, betan)
-    betasall = fill(p, N)
+    #convert(Float32, betan)
+    betasall = fill(betan, N)
     ismisinf = fill(false, N)
 
     stats = NamedTuple[]
     for (tid, people) in tile_people
         misinf  = rand(rng, length(people)) .< p_misinf_tile[tid]
         ii = people[misinf]
-        betasall[ii] .= mult*p
+        betasall[ii] .= mult*betan
         ismisinf[ii] .= true
         
         push!(stats, (; :tile_id => tid, :n_misinf => sum(misinf)))
@@ -101,12 +101,12 @@ function draw_misinformed_tile(betan::AbstractFloat, mult::Real, p_misinf_tile::
 end
 
 function draw_misinformed_homogen(betan::AbstractFloat, mult::Real, p_misinf::AbstractFloat,
-            N::Integer,  rng::AbstractRNG; beta_type=Float32)
+            N::Integer,  rng::AbstractRNG)
 
     ismisinf = rand(rng,N) .< p_misinf;
-    p=convert(beta_type, betan)
-    betasall = fill(p, N)
-    betasall[ismisinf] .= p*mult
+    #p=convert(beta_type, betan)
+    betasall = fill(betan, N)
+    betasall[ismisinf] .= betan*mult
 
     ismisinf, betasall
 end
