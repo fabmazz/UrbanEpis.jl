@@ -4,6 +4,7 @@ module UrbanEpis
 using Random
 
 using DataFrames
+using StatsBase
 
 using Graphs
 #using StatsBase
@@ -14,7 +15,11 @@ include("city.jl")
 include("plot_utils.jl")
 include("dfutils.jl")
 include("epidemic.jl")
+include("stats.jl")
 
-export draw_misinformed, find_fraction_infected, draw_misinformed_tile
+export df_fields_op
+export draw_misinformed, find_fraction_infected, draw_misinformed_tile, draw_misinformed_homogen, run_epidemics_city
+
+export find_avg_attack_rates_alldata
 
 end
