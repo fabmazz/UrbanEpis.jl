@@ -165,7 +165,7 @@ end
 function run_epidemics_city_SIR_parallel(G::AbstractGraph, T::Int, NSIMS::Int, datatile::TileData,  model_probs::GE.SIRModel,seed::Int; 
                     num_seeds::Int=20)
     simdatas = GE.SIRSimData[]
-    statesrec = Matrix{Int}[]
+    statesrec = Vector{NTuple{3,Int}}[]
     ismisinf_all = Vector{BitVector}(undef,NSIMS)
 
     
@@ -197,7 +197,7 @@ function run_epidemics_city_SIR_parallel(G::AbstractGraph, T::Int, NSIMS::Int, d
     println("\nFinished")
     
     nstates = stack_sims_results(statesrec)
-    
+
     (simdatas, nstates, ismisinf_all)
 end
 
