@@ -60,7 +60,7 @@ function run_single_sim_city(G::AbstractGraph, T::Int, misinf_tile_dict::Dict, d
 
     pz = rand(rng, 1:N, num_seeds)
     #tidstart, pz = draw_people_same_tile(tids_large_pop, tiles_idcs, num_seeds, rng)
-    dat, counts = GE.run_sir_fast(G, model,T, rng, pz,prob_infect_I=false)
+    dat, counts = GE.run_sir_fast(G, model,T, rng, pz, beta_IorS=:S)
 
     return counts, dat, ismisinf #DataFrame(stats)
 end
@@ -96,7 +96,7 @@ function run_epidemics_city(G::AbstractGraph, T::Int, NSIMS::Int, misinf_tile_di
     
         pz = rand(rng, 1:nv(G), num_seeds)
         #tidstart, pz = draw_people_same_tile(tids_large_pop, tiles_idcs, num_seeds, rng)
-        dat, counts = GE.run_sir_fast(G, model,T, rng, pz,prob_infect_I=false)
+        dat, counts = GE.run_sir_fast(G, model,T, rng, pz, beta_IorS=:S)
         #lock(lk) do
             push!(statesrec, counts)
             push!(simdatas, dat)
