@@ -81,3 +81,101 @@ function moving_average(arr::Vector, win_size::Integer)
     end
     avg
 end
+
+function calc_curves_misinf_slower(simds,counts_tot, misinfidcs)
+    TT=size(counts_tot,1)
+    tmax=TT-1
+    counts_misinf = zeros(Int,size(counts_tot));
+    tarrs = collect(0:tmax)
+    i=1
+    for (sd, ism) in zip(simds, misinfidcs)
+
+        dels = sd.rec_delays
+        infts = sd.infect_time.+1
+        trecs = infts .+ dels
+
+        trM = trecs[ism]
+        tiM = infts[ism]
+        
+        isInf =(@. tarrs >= tiM') 
+        counts_misinf[:,1,i] .= vec(sum(.!isInf, dims=2))
+        nInfected=vec(sum(isInf, dims=2))
+        counts_misinf[:,3,i] .= vec(sum((@. tarrs >= trM'),dims=2))
+        counts_misinf[:,2,i] .= nInfected .-counts_misinf[:,3,i]
+
+        i+=1
+    end
+
+    counts_misinf
+end
+
+function calc_curves_misinf(simds,counts_tot, misinfidcs)
+    TT=size(counts_tot,1)
+    tmax=TT-1
+    counts_misinf = zeros(Int,size(counts_tot));
+    tarrs = collect(0:tmax)
+    NSIMS = length(simds)
+    for i=1:NSIMS
+        sd = simds[i]
+        ism = misinfidcs[i]
+
+        dels = sd.rec_delays
+        infts = sd.infect_time.+1
+        trecs = infts .+ dels
+
+        trM = trecs[ism]
+        tiM = infts[ism]
+        num_M = sum(ism)
+        
+        for t in tarrs
+            isinf=@. t >= tiM
+            ninfect = sum(isinf)
+            nR = sum(@. t >= trM)
+            nI = ninfect - nR
+            nS = sum(.!isinf) #num_M - ninfs
+            ti=t+1
+            counts_misinf[ti,1,i] = nS
+            counts_misinf[ti,2,i] = nI
+            counts_misinf[ti,3,i] = nR
+        end
+
+    end
+
+    counts_misinf
+end
+
+function calc_curves_misinf_parallel(simds,counts_tot, misinfidcs)
+    TT=size(counts_tot,1)
+    tmax=TT-1
+    counts_misinf = zeros(Int,size(counts_tot));
+    tarrs = collect(0:tmax)
+    NSIMS = length(simds)
+    
+    @Threads.threads for i=1:NSIMS
+        sd = simds[i]
+        ism = misinfidcs[i]
+
+        dels = sd.rec_delays
+        infts = sd.infect_time.+1
+        trecs = infts .+ dels
+
+        trM = trecs[ism]
+        tiM = infts[ism]
+        #num_M = sum(ism)
+        
+        for t in tarrs
+            isinf=@. t >= tiM
+            ninfect = sum(isinf)
+            nR = sum(@. t >= trM)
+            nI = ninfect - nR
+            nS = sum(.!isinf) #num_M - ninfs
+            ti=t+1
+            counts_misinf[ti,1,i] = nS
+            counts_misinf[ti,2,i] = nI
+            counts_misinf[ti,3,i] = nR
+        end
+
+    end
+
+    counts_misinf
+end
