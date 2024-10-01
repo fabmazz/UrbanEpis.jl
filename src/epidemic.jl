@@ -1,7 +1,24 @@
 using ProgressMeter
 
+using GraphEpidemics
 import GraphEpidemics as GE
 
+struct SMIRModel
+    beta::AbstractFloat 
+    gamma::AbstractFloat
+    a::AbstractFloat ## how more probable is infection from M
+    b::AbstractFloat ## how many times is more likely for M to be infected
+end
+
+function epidemic_model_SMIR(glob_model, ismis, Npop)
+    betas = fill(convert(Float32,glob_model.beta), Npop)
+    sigmas = ones(Float32, Npop)
+    
+    betas[ismis] .*= glob_model.a
+    sigmas[ismis] .= glob_model.b
+    
+    SIRModelSus(betas, sigmas, glob_model.gamma)
+end
 
 function stats_misinf_tile(ismisinf::Union{Vector,BitVector}, datatile::TileData)
     [(; :tile_id => k, :n_misinf => sum(ismisinf[t]) ) for (k,t) in datatile.tiles_idcs]
@@ -25,7 +42,7 @@ function mean_misinf_pop(misinf_tile_dict::Dict, datatile::TileData)
     s/c
 end
 
-function stack_sims_results(r)
+function stack_sims_results(r::Vector{Tuple})
     NSIMS = length(r)
     maxt = maximum(map(x->length(x), r))
     mega_arr = zeros(Int, (maxt, 3,NSIMS));
@@ -41,33 +58,54 @@ function stack_sims_results(r)
     mega_arr
 end
 
-function run_single_sim_city(G::AbstractGraph, T::Int, misinf_tile_dict::Dict, datatile::TileData,  model_probs::GE.SIRModel, rng::AbstractRNG,
-    kind::Symbol, num_seeds::Int, beta_mult_mis::Real, frac_misinf_equal::AbstractFloat)
+function stack_sims_results(r::Vector{Matrix})
+    NSIMS = length(r)
+    maxt = maximum(map(x->size(x,1), r))
+    #println(maxt)
+    mega_arr = zeros(Int, (maxt, size(r[1],2),NSIMS));
+    for s=1:NSIMS
+        vv = r[s]
+        tt=size(r[s],1)
+        #for i in eachindex(vv[1])
+        mega_arr[1:tt,:,s] = vv
+        for l=1:size(vv,2)
+            mega_arr[tt+1:end,l,s].= mega_arr[tt,l,s]
+        end
+        #end
+        
+    end
+    mega_arr
+end
+
+function run_single_sim_city(G::AbstractGraph, T::Int, misinf_tile_dict::Dict, datatile::TileData,  epid_pars::GE.SIRModel, rng::AbstractRNG,
+    kind::Symbol, num_seeds::Int, beta_mult_mis::Real, frac_misinf_equal::AbstractFloat; beta_IorS=:S)
     N = nv(G)
-    if kind == :no_misinf 
-        ismisinf, probinfs = draw_misinformed_homogen(model_probs.beta, beta_mult_mis, 0.0, N , rng) ## no misinformed
+    #=if kind == :no_misinf 
+        ismisinf, probinfs = draw_misinformed_homogen(probs_adjusted.beta, beta_mult_mis, 0.0, N , rng) ## no misinformed
         #stats = stats_misinf_tile(ismisinf, datatile)
     elseif  kind == :misinf_equal 
-        ismisinf, probinfs = draw_misinformed_homogen(model_probs.beta, beta_mult_mis, frac_misinf_equal, N, rng) ## avg misinformed
+        ismisinf, probinfs = draw_misinformed_homogen(probs_adjusted.beta, beta_mult_mis, frac_misinf_equal, N, rng) ## avg misinformed
         #stats = stats_misinf_tile(ismisinf, datatile)
     elseif  kind == :misinf_tile
-        ismisinf, probinfs, stats=draw_misinformed_tile(model_probs.beta, beta_mult_mis, misinf_tile_dict, N, datatile.tiles_idcs, rng)
+        ismisinf, probinfs, stats=draw_misinformed_tile(probs_adjusted.beta, beta_mult_mis, misinf_tile_dict, N, datatile.tiles_idcs, rng)
     else
         throw(ArgumentError("The kind argument $kind is invalid. Choose between :no_misinf, :misinf_equal, or :misinf_tile"))
     end
+    =#
+
     
-    model = GE.SIRModel(probinfs, model_probs.gamma)
+    model = GE.SIRModel(probinfs, epid_pars.gamma)
 
     pz = rand(rng, 1:N, num_seeds)
     #tidstart, pz = draw_people_same_tile(tids_large_pop, tiles_idcs, num_seeds, rng)
-    dat, counts = GE.run_sir_fast(G, model,T, rng, pz, beta_IorS=:S)
+    dat, counts = GE.run_sir_fast(G, model,T, rng, pz, beta_IorS=beta_IorS)
 
     return counts, dat, ismisinf #DataFrame(stats)
 end
 
 
 function run_epidemics_city(G::AbstractGraph, T::Int, NSIMS::Int, misinf_tile_dict::Dict, datatile::TileData,  model_probs::GE.SIRModel, rng::AbstractRNG; 
-                    kind::Symbol=:misinf_tile, num_seeds::Int=20, beta_mult_mis::Real=2)
+                    kind::Symbol=:misinf_tile, num_seeds::Int=20)
     simdatas = GE.SIRSimData[]
     statesrec = Vector{NTuple{3,Int}}[]
     #misinfstats = DataFrame[]
@@ -118,10 +156,10 @@ function run_epidemics_city(G::AbstractGraph, T::Int, NSIMS::Int, misinf_tile_di
 end
 
 
-function run_epidemics_city_parallel(G::AbstractGraph, T::Int, NSIMS::Int, misinf_tile_dict::Dict, datatile::TileData,  model_probs::GE.SIRModel,seed::Int; 
-                    kind::Symbol=:misinf_tile, num_seeds::Int=20, beta_mult_mis::Real=2)
-    simdatas = GE.SIRSimData[]
-    statesrec = Vector{NTuple{3,Int}}[]
+function run_epidemics_city_parallel(G::AbstractGraph, T::Int, NSIMS::Int, misinf_tile_dict::Dict, datatile::TileData,  model_probs::GE.SIRModel,seed::Int, a; 
+                    kind::Symbol=:misinf_tile, num_seeds::Int=20, beta_mult_mis::Real=2, beta_IorS=:S)
+    #simdatas = GE.SIRSimData[]
+    #statesrec = Vector{NTuple{3,Int}}[]
     #misinfstats = DataFrame[]
     ismisinf_all = Vector{BitVector}(undef,NSIMS)
 
@@ -135,6 +173,8 @@ function run_epidemics_city_parallel(G::AbstractGraph, T::Int, NSIMS::Int, misin
     ## Use static thread assignment so that no other thread can use the same generator
     ## Slower, but safer
     #progr = Progress(NSIMS)
+    simdatas = Vector{GE.SIRSimData}(undef,N)
+    statesrec = Vector{Matrix}(undef, N)
     fin = 0
 
     Threads.@threads for i=1:NSIMS
@@ -142,10 +182,11 @@ function run_epidemics_city_parallel(G::AbstractGraph, T::Int, NSIMS::Int, misin
         #print("th $thid for $i;  ")
         rng = Xoshiro(i+seed-1)
 
-        counts, dat, ismisinf = run_single_sim_city(G, T, misinf_tile_dict, datatile, model_probs, rng, kind, num_seeds, beta_mult_mis, frac_mean_mis)
+        counts, dat, ismisinf = run_single_sim_city(G, T, misinf_tile_dict, datatile, model_probs, rng, kind, num_seeds, beta_mult_mis, frac_mean_mis; beta_IorS=beta_IorS)
         lock(resulock) do 
-            push!(statesrec, counts)
-            push!(simdatas, dat)
+
+            statesrec[i] = counts
+            simdatas[i] = dat
             fin += 1
             print("\r$fin / $NSIMS     ")
 

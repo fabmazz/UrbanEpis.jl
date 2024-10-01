@@ -7,9 +7,8 @@ using DataFrames
 using StatsBase
 
 using Graphs
-#using StatsBase
 
-export draw_people_same_tile, extract_tile_data
+export draw_people_same_tile, extract_tile_data, SMIRModel
 
 include("city.jl")
 include("plot_utils.jl")

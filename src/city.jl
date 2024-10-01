@@ -1,32 +1,36 @@
 struct TileData{I<:Integer}
-    tiles_idcs::Dict{I,Vector{I}}
+    idcs_in_tile::Dict{I,Vector{I}}
+    tiles_idcs::Vector{I}
     tiles_pop::Dict{I,I}
     tile_for_i::Dict{I,I}
 end
 
-function extract_tile_data(nodes_dat_new::DataFrame)
 
-    tiles_idcs = Dict{Int,Vector{Int}}()
+function extract_tile_data(nodes_dat_new::DataFrame; col_i="i")
+
+    idcs_in_tile = Dict{Int,Vector{Int}}()
     tiles_pop = Dict{Int,Int}()
     tile_for_i = Dict{Int,Int}()
     for r in eachrow(nodes_dat_new)
-        if r["inew"] == -1
+        if r[col_i] == -1
             continue
         end
-        inew = r["inew"]
+        inew = r[col_i]
         tid = r["tile_id"]
-        if !(tid in keys(tiles_idcs))
-            tiles_idcs[tid] = [inew]
+        if !(tid in keys(idcs_in_tile))
+            idcs_in_tile[tid] = [inew]
             tiles_pop[tid] = 1
         else
-            push!(tiles_idcs[tid],inew)
+            push!(idcs_in_tile[tid],inew)
             tiles_pop[tid]+=1
         end
         tile_for_i[inew] = tid
     end
 
-    TileData(tiles_idcs, tiles_pop, tile_for_i)
+    TileData(idcs_in_tile, convert.(Int,nodes_dat_new[!,"tile_id"]), tiles_pop, tile_for_i)
 end
+
+tile_for_pop(tiledata::TileData, i::Int) = tiledata.tile_for_i[i]
 
 function get_tiles_with_pop(data::TileData,condition::Function)
     idcs = Int[]
@@ -56,7 +60,7 @@ function draw_misinformed(betan::AbstractFloat, multi_misinf::Real, p_misinf::Ab
 end
 
 function find_fraction_infected(isinfected::BitVector, tilesdata::TileData)
-    find_fraction_infected(isinfected, tilesdata.tiles_idcs)
+    find_fraction_infected(isinfected, tilesdata.idcs_in_tile)
 end
 
 function find_fraction_infected(isinfected::BitVector, tiles_idcs::Dict{I,Vector{I}}) where I <: Integer
@@ -80,7 +84,7 @@ function find_avg_frac_inf_alldata(simdatas, datatile)
     combine(groupby(dff,:tile_id), :frac_inf => mean => :mean_inf)
 end
 
-
+convert_arr_tile_id_dict(arr::Vector, datatile::TileData) = Dict(zip(datatile.tiles_idcs, arr))
 
 function draw_misinformed_tile(betan::AbstractFloat, mult::Real, p_misinf_tile::Dict, N::Integer, tile_people::Dict, rng::AbstractRNG)
     #convert(Float32, betan)
