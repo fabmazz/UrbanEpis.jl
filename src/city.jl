@@ -27,7 +27,7 @@ function extract_tile_data(nodes_dat_new::DataFrame; col_i="i")
         tile_for_i[inew] = tid
     end
 
-    TileData(idcs_in_tile, convert.(Int,nodes_dat_new[!,"tile_id"]), tiles_pop, tile_for_i)
+    TileData(idcs_in_tile,sort(collect(keys(idcs_in_tile))), tiles_pop, tile_for_i)
 end
 
 tile_for_pop(tiledata::TileData, i::Int) = tiledata.tile_for_i[i]
@@ -86,7 +86,7 @@ end
 
 convert_arr_tile_id_dict(arr::Vector, datatile::TileData) = Dict(zip(datatile.tiles_idcs, arr))
 
-function draw_misinformed_tile(betan::AbstractFloat, mult::Real, p_misinf_tile::Dict, N::Integer, tile_people::Dict, rng::AbstractRNG)
+#=function draw_misinformed_tile(betan::AbstractFloat, mult::Real, p_misinf_tile::Dict, N::Integer, tile_people::Dict, rng::AbstractRNG)
     #convert(Float32, betan)
     betasall = fill(betan, N)
     ismisinf = fill(false, N)
@@ -103,8 +103,9 @@ function draw_misinformed_tile(betan::AbstractFloat, mult::Real, p_misinf_tile::
 
     ismisinf, betasall, stats
 end
+=#
 
-function draw_misinformed_homogen(betan::AbstractFloat, mult::Real, p_misinf::AbstractFloat,
+function draw_misbeh_hom(betan::AbstractFloat, mult::Real, p_misinf::AbstractFloat,
             N::Integer,  rng::AbstractRNG)
 
     ismisinf = rand(rng,N) .< p_misinf;
@@ -126,4 +127,18 @@ function calc_tiles_infect_stats(tiles_idcs::Dict, infect_time::Vector{<:Abstrac
         push!(stats, (; :tile_id => tid, :time_infect=>convert(Float32,t), :n_inf => ninfects, :frac_inf=>frac_infect))
     end
     stats
+end
+
+function draw_misbehav_tiles(tiles_idcs::AbstractVector, pmisinf_tile::Vector, idcs_in_tile::Dict, N::Integer, rng::AbstractRNG)
+    ismisinf = empty_bitvector(N)#fill(false, N)
+    frac_misinf = zeros(length(tiles_idcs))
+    for i=eachindex(tiles_idcs) #(t, pm) in zip(datatile.tiles_idcs, pmisinf_tile)
+        tid = tiles_idcs[i]
+        people = idcs_in_tile[tid]
+        misinf  = rand(rng, length(people)) .< pmisinf_tile[i]
+        ii = people[misinf]
+        ismisinf[ii] .= true
+        frac_misinf[i] = sum(misinf)/length(people)
+    end
+    ismisinf, frac_misinf
 end

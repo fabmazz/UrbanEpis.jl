@@ -20,6 +20,23 @@ function epidemic_model_SMIR(glob_model, ismis, Npop)
     SIRModelSus(betas, sigmas, glob_model.gamma)
 end
 
+
+struct SMIRStatesCounter{T<:AbstractVector} <: GraphEpidemics.AbstractStatesCounter
+    ismis::T
+end
+
+import GraphEpidemics: count_states
+
+function count_states(counter::SMIRStatesCounter,states::AbstractVector)
+    stateM = states[counter.ismis]
+    all = (StatsBase.counts(states,3))
+    Mc = (StatsBase.counts(stateM,3))
+    Oc = all .- Mc
+    SVector{6, Int}(vcat(Oc,Mc))
+end
+
+
+
 function stats_misinf_tile(ismisinf::Union{Vector,BitVector}, datatile::TileData)
     [(; :tile_id => k, :n_misinf => sum(ismisinf[t]) ) for (k,t) in datatile.tiles_idcs]
 end

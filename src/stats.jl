@@ -1,4 +1,76 @@
 vec_mean_std(x) = [mean_and_std(x)]
+empty_bitvector(N::Integer) = BitVector(zeros(Bool, N))
+
+
+function save_trace_inf_misinf(simdata::GraphEpidemics.SIRSimData, ismis, counts)
+    ##counts is a matrix of shape [T,N_states=6]
+    N = length(simdata.infect_node)
+    #st = zeros(Int, ())
+    T = size(counts,1)
+    for i = 1:N
+        if ismis[i]
+            offs=3
+        else
+            offs=0
+        end
+
+        if isnan(simdata.infect_time[i]) || isinf(simdata.infect_time[i])
+            ## never infected
+            counts[1:T, 1+offs] .+= 1
+        else
+            tinf = convert(Int, simdata.infect_time[i])+1
+            ## offset, first time is actually 0 -> 0:tinf-1 => 1:tinf
+            tinf_act = max(tinf+1,1)
+            counts[1:(tinf_act-1), 1+offs] .+=1
+            # 0:trec  -> 1:trec+1
+            trec = tinf+simdata.rec_delays[i] +1
+            #trec_act = Lmin(trec,)
+            if trec > T
+                counts[tinf_act:T, 2+offs].+=1
+            else
+                counts[tinf_act:trec-1,2+offs].+=1
+                counts[trec:T, 3+offs].+=1
+            end
+        end
+    end
+end
+"""
+Calculate the fraction of people (both O and M) that are infected in each tile.
+
+Takes the `SIRSimData` object from the simulation, the `TileData` object which contains the information on the tiles,
+and the vector indicating which individuals are Misbehaving
+
+`calc_frac_infected_tile_SMIR(simdat::GE.SIRSimData,datatile::TileData, ismis::Union{BitVector, Vector{Bool}})`
+"""
+function calc_frac_infected_tile_SMIR(simdat::GE.SIRSimData,datatile::TileData, ismis::Union{BitVector, Vector{Bool}})
+    ntiles = size(datatile.tiles_idcs,1)
+    infect_tiles = Matrix{Float32}(undef,ntiles,3)
+    NM_t = Vector{Int}(undef,ntiles)
+    # = zeros(size(datatile.tiles_idcs))
+    inf_all = @. !isnan(simdat.infect_time)
+    for i in eachindex(datatile.tiles_idcs)
+        tid = datatile.tiles_idcs[i]
+        peop = datatile.idcs_in_tile[tid]
+        Np = size(peop,1)
+        infect = @view inf_all[peop]
+        mi = @view ismis[peop]
+        nM = sum(mi)
+        mandinf = @view infect[mi]
+        oandinf = @.(infect & !mi) #@view infect[.!mi]
+        infect_tiles[i,2] = sum(mandinf) / (nM)
+        infect_tiles[i,1] = sum(oandinf) / (Np-nM)
+        infect_tiles[i,3] = sum(infect) / Np
+        NM_t[i] = nM
+    end
+
+    infect_tiles, NM_t
+end
+
+function count_SMIR_state(states)
+    c = SVector{6,Int}(
+        sum(states.==i) for i=1:6
+    )
+end
 
 function calc_tile_infect_stats(simdat, isM, datatile)
     resu = NamedTuple[]
@@ -46,6 +118,7 @@ function find_avg_attack_rates_allsims(simdatas, misinfsarr, datatile)
 end
 
 ### DEPRECATED
+#=
 function find_avg_attack_rates_alldata_legacy(simdatas, datatile)
     alldas = DataFrame[] #s=simdatas[1]
     minfs=[]
@@ -71,7 +144,7 @@ function tiles_misinfect_stats_full(misinfstats, tile_data; people_col=:people)
 
     mean_misinf_shuff
 end
-
+=#
 function moving_average(arr::Vector, win_size::Integer)
     n = length(arr)
     avg = zeros(n)
@@ -81,7 +154,7 @@ function moving_average(arr::Vector, win_size::Integer)
     end
     avg
 end
-
+#=
 function calc_curves_misinf_slower(simds,counts_tot, misinfidcs)
     TT=size(counts_tot,1)
     tmax=TT-1
@@ -179,3 +252,4 @@ function calc_curves_misinf_parallel(simds,counts_tot, misinfidcs)
 
     counts_misinf
 end
+=#
