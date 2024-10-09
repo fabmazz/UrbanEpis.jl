@@ -79,7 +79,7 @@ function stack_sims_results(r::Vector{Matrix})
     NSIMS = length(r)
     maxt = maximum(map(x->size(x,1), r))
     #println(maxt)
-    mega_arr = zeros(Int, (maxt, size(r[1],2),NSIMS));
+    mega_arr = zeros(eltype(r[1]), (maxt, size(r[1],2),NSIMS));
     for s=1:NSIMS
         vv = r[s]
         tt=size(r[s],1)

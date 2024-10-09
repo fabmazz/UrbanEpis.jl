@@ -34,6 +34,66 @@ function save_trace_inf_misinf(simdata::GraphEpidemics.SIRSimData, ismis, counts
         end
     end
 end
+function get_times_infs_recs(simd::GE.SIRSimData, idcs, tstep::AbstractFloat=1.0)
+    l=@. ~isnan(simd.infect_time[idcs])
+    iinf = idcs[l]
+    iis= @. (simd.infect_time[iinf] +1)*tstep
+    dels = (simd.rec_delays[iinf] .*tstep) .+ iis
+    iinf,iis, dels
+end
+
+function calc_tiles_inf_history(datatile::TileData, simd::GE.SIRSimData, misbeh::AbstractVector, nTimesteps::Integer)
+    fracinf = zeros(nTimesteps, length(unique(datatile.tiles_idcs)),3)
+    for (it,tileid) in enumerate(datatile.tiles_idcs)
+        iinf, ti,tr=get_times_infs_recs(simd, datatile.idcs_in_tile[tileid], 1.)
+        
+        frinf = length(iinf) / length(datatile.idcs_in_tile[tileid])
+        
+        Ntile = StatsBase.counts(misbeh[datatile.idcs_in_tile[tileid]])
+        ismis_tile = misbeh[iinf];
+        
+        #ds = DataFrame(:idcs => iinf, :tinf => ti, :trec => tr, :ismis => ismis_tile)
+        cstats=zeros(nTimesteps,2);
+        
+        for i=eachindex(tr)
+            tr_sel = min(tr[i]+1, size(cstats,1))
+            u = ismis_tile[i] ? 2 : 1
+            cstats[convert(Int,ti[i]+1):convert(Int,tr_sel), u] .+= 1
+        end
+        
+        fracinf[:,it,2:3] = cstats./Ntile'
+        fracinf[:,it,1] = sum(cstats, dims=2)[:,1] / sum(Ntile)
+    end
+    fracinf
+end
+
+function calc_tiles_timeinf_infector(datatile::TileData,simd::GE.SIRSimData, tiles_for_i::AbstractVector)
+    N = size(simd.infect_node,1)
+    u=DataFrame(:id=>1:N,:tile_id => tiles_for_i[1:N], :time_inf => simd.infect_time .+1, :infector => simd.infect_node)
+    u[!,:time_rec] = simd.rec_delays .+ u.time_inf
+    u = filter(:time_inf => x-> !isnan(x), u )
+    u[!,:tile_inf] = map(i-> i>0 ? Int(tiles_for_i[Int(i)]) : -10, u.infector)
+    
+    maxrec = combine(groupby(u, :tile_id), :time_rec => maximum => :tile_rec)
+    maxrec[!,:tile_rec] = convert.(Int, maxrec.tile_rec)
+
+    uextra=u[u.tile_id .!= u.tile_inf,:]
+    result = combine(groupby(uextra, :tile_id)) do group
+        min_row = argmin(group.time_inf) # Find the index of the minimum y in each group
+        (time_inf = Int(group.time_inf[min_row]), tile_inf=group.tile_inf[min_row])
+    end
+    result = innerjoin(result, maxrec, on="tile_id")
+    #z=fill(-10,(Ntiles, 2))
+    iis = setdiff(datatile.tiles_idcs,result.tile_id)
+    resu=vcat(result,DataFrame(tile_id = iis, time_inf=-50, tile_inf=-100, tile_rec=-50))
+    sort!(resu, :tile_id)
+
+    @assert resu.tile_id == datatile.tiles_idcs
+
+    resu
+end
+
+
 """
 Calculate the fraction of people (both O and M) that are infected in each tile.
 
