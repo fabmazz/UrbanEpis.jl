@@ -67,6 +67,16 @@ function calc_tiles_inf_history(datatile::TileData, simd::GE.SIRSimData, misbeh:
     fracinf
 end
 
+function find_peak_t_values_fracinf(fracinf::AbstractArray, tstep::Real)
+    vs, idx = findmax(fracinf, dims=1)
+
+    @assert all(map(u-> u[2], idx[1,:,1]) == collect(1:size(fracinf,2)) )
+    times_pk_all=stack(map(u-> (u[1]-1)*tstep, idx[1,:,k]) for k=1:3)
+    peaks_i_all = vs[1,:,:]
+
+    times_pk_all, peaks_i_all
+end
+
 function calc_tiles_timeinf_infector(datatile::TileData,simd::GE.SIRSimData, tiles_for_i::AbstractVector)
     N = size(simd.infect_node,1)
     u=DataFrame(:id=>1:N,:tile_id => tiles_for_i[1:N], :time_inf => simd.infect_time .+1, :infector => simd.infect_node)
