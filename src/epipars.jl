@@ -26,3 +26,19 @@ function calc_pmisinf_from_pvhe(datatile::TileData, tiles_vhes_to_filt::Abstract
     pmis_tile_order_vhes =  upm * Mscale
     return DataFrame(tile_id=df[!,"tile_id"], p_mis=pmis_tile_order_vhes)
 end
+
+
+function max_global_pmis_from_pvhe(datatile::TileData, tiles_vhes_to_filt::AbstractDataFrame, total_people::Integer; col_vaxhes="pvhe")
+    df = filter("tile_id" => x -> in(x, datatile.tiles_idcs), tiles_vhes_to_filt)
+    sort!(df, "tile_id")
+    
+    x = replace(df[!,col_vaxhes], missing => NaN)
+    @assert any(isnan.(x)) == false
+    ## compute cumulative distribution on selected tiles
+    f_s = ecdf(x)
+    upm = f_s(x) ### These are from 0 to 1
+    ## calculate average unscaled_pm
+    AV_upm = sum(datatile.tiles_pop[tid]*y for (tid,y) in zip(df[!,"tile_id"], upm) ) / total_people
+
+    return AV_upm
+end
