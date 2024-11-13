@@ -1,6 +1,67 @@
 vec_mean_std(x) = [mean_and_std(x)]
 empty_bitvector(N::Integer) = BitVector(zeros(Bool, N))
 
+function calc_num_connection_tiles(G::SimpleGraph, tile_for_i::AbstractVector)
+    tiles_conns = Dict{Tuple{Int,Int}, Int}()
+    for e in (edges(G))
+        t_i = tile_for_i[e.src]
+        t_j = tile_for_i[e.dst]
+        for c in [ (t_i,t_j), (t_j,t_i)]
+            if !(c in keys(tiles_conns))
+                tiles_conns[c] = 1
+            else
+                tiles_conns[c]+=1
+            end
+        end
+    end
+    tiles_conns
+end
+
+function convert_dict_to_df(mdict::Dict, keys_names, val_name::String)
+    df=DataFrame(Tables.table(stack(keys(mdict))'),keys_names)
+    df[!,val_name] = collect(values(mdict))
+    df
+end
+
+function calc_flow_infection_tiles(simd::GraphEpidemics.SIRSimData, tiles_conns::Dict, tile_for_i::AbstractVector)
+    du_out = Dict(k=> 0 for k in keys(tiles_conns));
+    N = size(simd.infect_node,1)
+
+    for i=1:N
+        if isnan(simd.infect_time[i])
+            continue
+        end
+        tid = tile_for_i[i]
+        if simd.infect_node[i] > 0
+            infect_tid = tile_for_i[Int(simd.infect_node[i])]
+            du_out[(infect_tid, tid)] += 1
+        end
+    end
+
+    df=convert_dict_to_df(du_out, ["tile_from","tile_to"], "num_infect")
+    sort!(df, ["tile_from","tile_to"])
+end
+
+function join_all_flow_infect(dataframes::Vector{<:DataFrame})
+    if length(dataframes)<2
+        return dataframes[1]
+    end
+    
+    refdf = dataframes[1]
+    sort!(refdf,["tile_from","tile_to"] )
+    tif = refdf[!,"tile_from"]
+    tito = refdf[!,"tile_to"]
+    dfout = DataFrame(Dict("tile_from"=>tif, "tile_to"=>tito, "ninf_1" => refdf[!,"num_infect"]))
+    for i=2:length(dataframes)
+        d = dataframes[i]
+        sort!(d, ["tile_from","tile_to"])
+        @assert all(d[!,"tile_from"].==tif)
+        @assert all(d[!,"tile_to"] .== tito)
+        dfout[!,"ninf_$i"] = d[!,"num_infect"]
+    end
+
+    dfout
+end
 
 function save_trace_inf_misinf(simdata::GraphEpidemics.SIRSimData, ismis, counts)
     ##counts is a matrix of shape [T,N_states=6]
@@ -77,6 +138,12 @@ function find_peak_t_values_fracinf(fracinf::AbstractArray, tstep::Real)
     times_pk_all, peaks_i_all
 end
 
+"""
+`calc_tiles_timeinf_infector(datatile::TileData,simd::GE.SIRSimData, tiles_for_i::AbstractVector)`
+
+Calculate the time of first infection and the time of last recovery in a tile, and the tile index from which the infection came from.
+Return a DataFrame with the columns "tile_id", "time_inf", "tile_inf", "tile_rec".
+"""
 function calc_tiles_timeinf_infector(datatile::TileData,simd::GE.SIRSimData, tiles_for_i::AbstractVector)
     N = size(simd.infect_node,1)
     u=DataFrame(:id=>1:N,:tile_id => tiles_for_i[1:N], :time_inf => simd.infect_time .+1, :infector => simd.infect_node)
@@ -105,12 +172,13 @@ end
 
 
 """
+`calc_frac_infected_tile_SMIR(simdat::GE.SIRSimData,datatile::TileData, ismis::Union{BitVector, Vector{Bool}})`
+
 Calculate the fraction of people (both O and M) that are infected in each tile.
 
 Takes the `SIRSimData` object from the simulation, the `TileData` object which contains the information on the tiles,
 and the vector indicating which individuals are Misbehaving
 
-`calc_frac_infected_tile_SMIR(simdat::GE.SIRSimData,datatile::TileData, ismis::Union{BitVector, Vector{Bool}})`
 """
 function calc_frac_infected_tile_SMIR(simdat::GE.SIRSimData,datatile::TileData, ismis::Union{BitVector, Vector{Bool}})
     ntiles = size(datatile.tiles_idcs,1)

@@ -25,6 +25,6 @@ export find_avg_attack_rates_allsims, tiles_misinfect_stats_full, calc_curves_mi
 
 export calc_frac_infected_tile_SMIR, save_trace_inf_misinf, count_SMIR_state
 
-export calc_tiles_timeinf_infector, calc_tiles_inf_history, calc_pmisinf_from_pvhe
+export calc_tiles_timeinf_infector, calc_tiles_inf_history, calc_pmisinf_from_pvhe, calc_flow_infection_tiles, join_all_flow_infect
 
 end
