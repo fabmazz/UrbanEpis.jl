@@ -5,7 +5,6 @@ struct TileData{I<:Integer}
     tile_for_i::Dict{I,I}
 end
 
-
 function extract_tile_data(nodes_dat_new::DataFrame; col_i="i")
 
     idcs_in_tile = Dict{Int,Vector{Int}}()
