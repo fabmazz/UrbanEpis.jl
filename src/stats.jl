@@ -63,6 +63,45 @@ function join_all_flow_infect(dataframes::Vector{<:DataFrame})
     dfout
 end
 
+"""
+`calc_flow_infection_tiles_mis(simd::GraphEpidemics.SIRSimData, isM::Union{Vector{Bool},BitVector}, links_indices::Dict, tile_for_i::AbstractVector)`
+
+Calculate the number of infections exported from each tile to any other tile during the epidemic, for each kind of event (O->O, O->M, M->O, M->M)
+
+Returns a matrix where each row index corresponds to a tile, and each column to the type of event.
+The indices for the tile are specified externally, in the dict `links_indices`.
+"""
+function calc_flow_infection_tiles_mis(simd::GraphEpidemics.SIRSimData, isM::Union{Vector{Bool},BitVector}, links_indices::Dict, tile_for_i::AbstractVector)
+    nlinks = length(keys(links_indices))
+    #links_indices = Dict(k=> i for (i,k) in enumerate(sort(keys(tiles_conns))) )
+    N = size(simd.infect_node,1)
+    @assert length(isM) == N
+    counts_infs = zeros(Int32, (nlinks,4))
+
+    for i=1:N
+        if isnan(simd.infect_time[i])
+            continue
+        end
+        tid = tile_for_i[i]
+        if simd.infect_node[i] > 0
+            j = Int(simd.infect_node[i])
+            infect_tid = tile_for_i[j]
+            st_idx = 1
+            if isM[i]
+                st_idx += 2
+            end
+            if isM[j]
+                st_idx += 1
+            end
+            #links_indices[(infect_tid, tid)] += 1
+            row_idx = links_indices[(infect_tid, tid)]
+            counts_infs[row_idx, st_idx] +=1
+        end
+    end
+    counts_infs
+end
+
+
 function save_trace_inf_misinf(simdata::GraphEpidemics.SIRSimData, ismis, counts)
     ##counts is a matrix of shape [T,N_states=6]
     N = length(simdata.infect_node)
@@ -255,34 +294,6 @@ function find_avg_attack_rates_allsims(simdatas, misinfsarr, datatile)
         )
 end
 
-### DEPRECATED
-#=
-function find_avg_attack_rates_alldata_legacy(simdatas, datatile)
-    alldas = DataFrame[] #s=simdatas[1]
-    minfs=[]
-    for s in simdatas
-        dd=find_fraction_infected((@. ~isnan(s.infect_time)), datatile)
-        infected = @. ~isnan(s.infect_node)
-        minf = mean(infected)
-        frac_inf = collect(values(dd))
-        rel_ar = frac_inf ./ minf
-        push!(minfs, minf)
-        df=DataFrame(:tile_id => collect(keys(dd)), :frac_inf => frac_inf, :rel_att => rel_ar)
-        push!(alldas,df)
-    end
-    dff = reduce(vcat,alldas)
-    combine(groupby(dff,:tile_id), "frac_inf" => vec_mean_std => ["mean_finf", "finf_std"], "rel_att" => vec_mean_std => ["rel_att_mean", "rel_att_std"]), minfs
-end
-
-function tiles_misinfect_stats_full(misinfstats, tile_data; people_col=:people)
-    mis_stats_shuff = reduce(vcat,misinfstats);
-    mean_misinf_shuff = combine(groupby(mis_stats_shuff,:tile_id), :n_misinf => vec_mean_std => [:mean_n_misinf, :n_misinf_std], )
-    mean_misinf_shuff = innerjoin(mean_misinf_shuff, tile_data, on="tile_id")
-    mean_misinf_shuff[!,:frac_misinf_mean] = @. mean_misinf_shuff.mean_n_misinf / mean_misinf_shuff[!,people_col]
-
-    mean_misinf_shuff
-end
-=#
 function moving_average(arr::Vector, win_size::Integer)
     n = length(arr)
     avg = zeros(n)
@@ -292,102 +303,3 @@ function moving_average(arr::Vector, win_size::Integer)
     end
     avg
 end
-#=
-function calc_curves_misinf_slower(simds,counts_tot, misinfidcs)
-    TT=size(counts_tot,1)
-    tmax=TT-1
-    counts_misinf = zeros(Int,size(counts_tot));
-    tarrs = collect(0:tmax)
-    i=1
-    for (sd, ism) in zip(simds, misinfidcs)
-
-        dels = sd.rec_delays
-        infts = sd.infect_time.+1
-        trecs = infts .+ dels
-
-        trM = trecs[ism]
-        tiM = infts[ism]
-        
-        isInf =(@. tarrs >= tiM') 
-        counts_misinf[:,1,i] .= vec(sum(.!isInf, dims=2))
-        nInfected=vec(sum(isInf, dims=2))
-        counts_misinf[:,3,i] .= vec(sum((@. tarrs >= trM'),dims=2))
-        counts_misinf[:,2,i] .= nInfected .-counts_misinf[:,3,i]
-
-        i+=1
-    end
-
-    counts_misinf
-end
-
-function calc_curves_misinf(simds,counts_tot, misinfidcs)
-    TT=size(counts_tot,1)
-    tmax=TT-1
-    counts_misinf = zeros(Int,size(counts_tot));
-    tarrs = collect(0:tmax)
-    NSIMS = length(simds)
-    for i=1:NSIMS
-        sd = simds[i]
-        ism = misinfidcs[i]
-
-        dels = sd.rec_delays
-        infts = sd.infect_time.+1
-        trecs = infts .+ dels
-
-        trM = trecs[ism]
-        tiM = infts[ism]
-        num_M = sum(ism)
-        
-        for t in tarrs
-            isinf=@. t >= tiM
-            ninfect = sum(isinf)
-            nR = sum(@. t >= trM)
-            nI = ninfect - nR
-            nS = sum(.!isinf) #num_M - ninfs
-            ti=t+1
-            counts_misinf[ti,1,i] = nS
-            counts_misinf[ti,2,i] = nI
-            counts_misinf[ti,3,i] = nR
-        end
-
-    end
-
-    counts_misinf
-end
-
-function calc_curves_misinf_parallel(simds,counts_tot, misinfidcs)
-    TT=size(counts_tot,1)
-    tmax=TT-1
-    counts_misinf = zeros(Int,size(counts_tot));
-    tarrs = collect(0:tmax)
-    NSIMS = length(simds)
-    
-    @Threads.threads for i=1:NSIMS
-        sd = simds[i]
-        ism = misinfidcs[i]
-
-        dels = sd.rec_delays
-        infts = sd.infect_time.+1
-        trecs = infts .+ dels
-
-        trM = trecs[ism]
-        tiM = infts[ism]
-        #num_M = sum(ism)
-        
-        for t in tarrs
-            isinf=@. t >= tiM
-            ninfect = sum(isinf)
-            nR = sum(@. t >= trM)
-            nI = ninfect - nR
-            nS = sum(.!isinf) #num_M - ninfs
-            ti=t+1
-            counts_misinf[ti,1,i] = nS
-            counts_misinf[ti,2,i] = nI
-            counts_misinf[ti,3,i] = nR
-        end
-
-    end
-
-    counts_misinf
-end
-=#
