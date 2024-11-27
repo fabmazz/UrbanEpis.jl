@@ -56,19 +56,18 @@ function HesiTileData(tiledata::TileData,  tiles_vhes_to_filt::AbstractDataFrame
     x = replace(df[!,col_vaxhes], missing => NaN)
     @assert any(isnan.(x)) == false
     people = collect(tiledata.tiles_pop[i] for i in df[!,:tile_id])
-    idcs = convert(Int, df[!,:tile_id])
+    idcs = convert.(Int, df[!,:tile_id])
     @assert all(idcs .== tiledata.tiles_idcs)
     upm = (x.-minimum(x))./(maximum(x)-minimum(x))
     HesiTileData(idcs,people, upm)
 end
 
-function shuffle_hesit_tile!(tiledata::HesiTileData, rng::AbstractRNG)
-    shuffle!(rng,tiledata.tile_h)
+function shuffle_hesit_tile(tiledata::HesiTileData, rng::AbstractRNG)
+    shuffle(rng,tiledata.tile_h)
 end
 
-function calc_tile_pm_hes_lin(hesitile::HesiTileData, desired_mean_pmis::AbstractFloat)
-    
-   AV_upm =  @.( hesitile.people * hesitile.tile_h) / sum(hesitile.people)
+function calc_tile_pm_hes_lin(hesitile::HesiTileData, desired_mean_pmis::AbstractFloat, hesi::AbstractVector)
+   AV_upm =  sum(@.( hesitile.tile_pop * hesi) ) / sum(hesitile.tile_pop)
    Mscale = desired_mean_pmis / AV_upm
    pmis_tile_order_vhes = @. hesitile.tile_h * Mscale
 

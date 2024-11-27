@@ -101,7 +101,18 @@ function calc_flow_infection_tiles_mis(simd::GraphEpidemics.SIRSimData, isM::Uni
     counts_infs
 end
 
-
+function join_all_flow_infect(links_indices::Dict,mats_sim::Vector{Matrix})
+    links_rev = Dict(v=>k for (k,v) in links_indices)
+    idcs_links = stack(links_rev[i] for i=1:length(links_rev))'
+    dfout = DataFrame(Tables.table(idcs_links),["tid_from","tid_to"]);
+    for s in eachindex(mats_sim)
+        #matout=UrbanEpis.calc_flow_infection_tiles_mis(simdatas[s],misbehs[s],links_indices, tile_for_i)
+        for (k,c) in enumerate(["OO","OM","MO","MM"])
+            dfout[!,"inf_$(c)_$s"] = mats_sim[s][:,k]
+        end
+    end
+    dfout
+end
 function save_trace_inf_misinf(simdata::GraphEpidemics.SIRSimData, ismis, counts)
     ##counts is a matrix of shape [T,N_states=6]
     N = length(simdata.infect_node)
