@@ -1,4 +1,4 @@
-export HesiTileData, shuffle_hesit_tile!,calc_tile_pm_hes_lin
+export HesiTileData, shuffle_hesit_tile, calc_tile_pm_hes_lin
 
 rate_to_prob(b::Real,t::Real) = 1 - exp(-b*t)
 

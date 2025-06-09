@@ -10,7 +10,7 @@ struct SMIRModel
     b::AbstractFloat ## how many times is more likely for M to be infected
 end
 
-function epidemic_model_SMIR(glob_model, ismis, Npop)
+function epidemic_model_SMIR(glob_model::SMIRModel, ismis, Npop)
     betas = fill(convert(Float32,glob_model.beta), Npop)
     sigmas = ones(Float32, Npop)
     
