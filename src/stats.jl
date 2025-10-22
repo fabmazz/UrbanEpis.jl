@@ -314,3 +314,30 @@ function moving_average(arr::Vector, win_size::Integer)
     end
     avg
 end
+
+
+function count_people_active_tile(hist_compl::AbstractVector{D}, tilesUnique::AbstractVector,
+       idcs_tile::Dict{<:Integer, V}; dtype::DataType=Int
+        ) where {D <: Union{BitVector, Vector{Bool}}, V<: AbstractVector{<:Integer}}
+
+    nt = length(tilesUnique)
+    T = length(hist_compl)
+    #N=length(tilefori)
+
+    resu = zeros(dtype,nt,T)
+    #dictTiles = Dict(v=>i for (i,v) in enumerate(tilesUnique))
+
+    for t=1:T
+        #=for j=1:N
+            if hist_compl[t][j]
+                resu[dictTiles[tilefori[j]], t] += 1
+            end
+        end
+        =#
+        for j=1:nt
+            resu[j,t] = sum(hist_compl[t][idcs_tile[tilesUnique[j]]])
+        end
+    end
+
+    resu
+end
