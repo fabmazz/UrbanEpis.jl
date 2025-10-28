@@ -1,3 +1,5 @@
+using SparseArrays: spdiagm
+
 abstract type AbstractTilesData end
 
 struct TileData{I<:Integer} #<: AbstractTilesData
@@ -203,4 +205,48 @@ function build_cells_neighbors_graph(df::DataFrame, col_x::AbstractString, col_y
     end
 
     return g
+end
+
+function get_adj_mat_diag(graph::AbstractGraph)
+    R = adjacency_matrix(graph)
+    R+spdiagm(ones(Bool,size(R,1)))
+end
+
+function make_heatmap(df,x,y,z)
+    xv = df[!,x]
+    yv = df[!,y]
+    zv = df[!,z]
+    xmin = minimum(xv)
+    xlen = maximum(xv) - xmin +1
+    ymin = minimum(yv)
+    ylen = maximum(yv) - ymin +1
+    mat = fill(NaN64,(xlen,ylen))
+    for (x,y,z) in zip(xv, yv, zv)
+        cx = x-xmin+1
+        cy = y-ymin +1
+        mat[cx,cy] =z
+    end
+
+    (xmin:maximum(xv)), (ymin:maximum(yv)), mat
+end
+
+function make_heatmap(df,x,y,zvals::AbstractVector)
+    xv = df[!,x]
+    yv = df[!,y]
+    zv = zvals #df[!,z]
+    if length(zv) != length(xv)
+        throw(ArgumentError("The z values must be the same length of the dataframe (length=$(length(xv)))"))
+    end
+    xmin = minimum(xv)
+    xlen = maximum(xv) - xmin +1
+    ymin = minimum(yv)
+    ylen = maximum(yv) - ymin +1
+    mat = fill(NaN64,(xlen,ylen))
+    for (x,y,z) in zip(xv, yv, zv)
+        cx = x-xmin+1
+        cy = y-ymin +1
+        mat[cx,cy] =z
+    end
+
+    (xmin:maximum(xv)), (ymin:maximum(yv)), mat
 end

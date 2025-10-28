@@ -28,6 +28,6 @@ export calc_frac_infected_tile_SMIR, save_trace_inf_misinf, count_SMIR_state
 
 export calc_tiles_timeinf_infector, calc_tiles_inf_history, calc_pmisinf_from_pvhe, calc_flow_infection_tiles, join_all_flow_infect
 
-export count_states_by_tileid, dictForArr, count_people_active_tile, bin_counts_tileids
+export count_epistates_by_tileid, dictForArr, count_people_active_tile, bin_counts_tileids, make_heatmap, get_adj_mat_diag
 
 end

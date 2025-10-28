@@ -1,4 +1,4 @@
-function count_states_by_tileid(data::GraphEpidemics.SEIRSimData, citydata::TileData, t::Real; dtype::DataType=Int)
+function count_epistates_by_tileid(data::GraphEpidemics.SEIRSimData, citydata::TileData, t::Real; dtype::DataType=Int)
     # Unique sorted keys
     unique_keys = citydata.tiles_idcs
     nkeys = length(unique_keys)
