@@ -341,3 +341,29 @@ function count_people_active_tile(hist_compl::AbstractVector{D}, tilesUnique::Ab
 
     resu
 end
+
+function count_active_groups(X::AbstractMatrix{<:Integer}, V::AbstractVector{<:Integer})
+    N, T = size(X)
+    @assert length(V) == N #"La lunghezza di V deve essere uguale al numero di righe di X"
+
+    groups = unique(V)
+    M = length(groups)
+    group_to_index = Dict(g => i for (i, g) in enumerate(groups))
+
+    Y = zeros(Int32, M, T)
+
+    # Somma per gruppo
+    for i in 1:N
+        g = group_to_index[V[i]]
+        @inbounds Y[g, :] .+= X[i, :]
+    end
+
+    return Y, groups
+end
+
+function count_active_groups_frac(X, V)
+    Y, groups = count_active_groups(X, V)
+    counts = [sum(V .== g) for g in groups]
+    Y_frac = Y ./ counts
+    return Y_frac, groups
+end

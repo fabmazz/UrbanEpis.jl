@@ -122,6 +122,69 @@ function count_states_by_tileid_times(data::GraphEpidemics.SEIRSimData, citydata
 end 
 
 
+
+function count_states_by_group(data::GraphEpidemics.SEIRSimData, groupForI::AbstractVector{<:Integer}, times::AbstractVector{<:Real};
+     dtype::DataType=Int, fractional::Bool=false)
+    # Unique sorted keys
+    unique_keys = unique(groupForI)#citydata.tiles_idcs
+    nkeys = length(unique_keys)
+    N = length(groupForI)
+    @assert length(data.infect_time) == N
+    
+    # Define state order and mapping
+    state_syms = (:S, :E, :I, :R)
+    #state_to_col = Dict(:S => 1, :E => 2, :I => 3, :R => 4)
+    row_for_c = Dict(g => i for (i, g) in enumerate(unique_keys))
+    
+    # Initialize count matrix (rows = keys, cols = states)
+    if fractional
+        if dtype==Int
+            dtype = Float64
+        end
+        @assert dtype <: AbstractFloat "Chosen dtype is not compatible for fractional (must be <: AbstractFloat)"
+    end
+    ntimes = length(times)
+    counts = zeros(dtype, ntimes, nkeys, length(state_syms))
+    
+    #for (row,tid) in enumerate(unique_keys)
+        for i=1:N
+            row=row_for_c[groupForI[i]]
+            inf_t = data.infect_time[i]
+            lat = data.lat_delays[i]
+            rec = data.rec_delays[i]
+            
+            # determine state directly
+
+            #fill!(counts[])
+            if isnan(inf_t)
+                ### always S
+                @view(counts[:,row,1]) .+= 1
+            else
+                mm = times .< inf_t
+                @view(counts[mm, row, 1]) .+=1
+                g = times .< (inf_t +1+lat)
+                mm = not_and_y.(mm, g) #@. !mm && g
+                @views(counts[mm, row, 2]) .+=1
+                g2 = times .< (inf_t + 1+ lat+rec)
+                mm = not_and_y.(g, g2)  #@. !g && g2
+                @view(counts[mm, row, 3]) .+=1
+                ### for R 
+                @view(counts[.!g2, row, 4]) .+=1
+            end
+
+        end
+    if fractional
+        for (i,g) in enumerate(unique_keys)
+            nn = sum(groupForI .== g)
+            counts[:,i,:] ./= nn
+        end
+    end
+    return counts
+end 
+
+    
+
+
 function count_states_by_tileid_times_f(data::GraphEpidemics.SEIRSimData, citydata::TileData, times::AbstractVector{<:Real}; dtype::DataType=Int)
     # Unique sorted keys
     unique_keys = citydata.tiles_idcs
@@ -251,7 +314,6 @@ function mean_counts_tileids(A::Vector{Vector{T}}, tileData::TileData) where T
     
     # 2. Itera su ogni riga dell'array 2D
     for (t, row) in enumerate(A)
-        # fit(h, row_view) calcola l'istogramma solo sui dati della riga corrente.
         # .weights contiene i conteggi per ogni bin.
         for k =1:nkeys
             tid = tileData.tiles_idcs[k]
@@ -265,4 +327,51 @@ function mean_counts_tileids(A::Vector{Vector{T}}, tileData::TileData) where T
     end
     
     return means_matr
+end
+
+function count_indiv_prop_per_tile(indiv_prop::AbstractVector, tileData::TileData, fun::Function; dtype=Float64)
+    nkeys = length(tileData.tiles_idcs)
+    res = zeros(dtype,nkeys)
+        for k =1:nkeys
+        tid = tileData.tiles_idcs[k]
+        idcs_in = tileData.idcs_in_tile[tid]
+
+        #counts_matrix[t, k,:] = fit(Histogram,@view(row[idcs_in]), bin_edges, closed=:left).weights
+        # count_bins!(@view(row[idcs_in]), bin_edges,@view(means_matr[t,k,:]))
+
+        res[k] = fun(@view(indiv_prop[idcs_in]))
+    end
+    res
+end
+
+function mean_counts_party(A::Vector{Vector{T}}, partyfori::AbstractVector) where T
+    # Il numero di righe nell'array A
+    n_rows = length(A)
+    # Il numero di bin sarà il numero di bordi - 1
+    #n_bins = length(bin_edges) - 1
+    unique_part = unique(partyfori)
+    nkeys = length(unique_part)
+
+    # Pre-alloca la matrice dei risultati per le performance
+    # Risultato è una matrice n_rows x n_bins di Int
+    means_matr = zeros(n_rows, nkeys)
+    
+    # 1. Definisce l'oggetto istogramma con i bordi desiderati
+    # closed=:left significa che i bin sono intervalli chiusi a sinistra: [a, b)
+    #h = Histogram(bin_edges, closed=:left)
+    whichids = [partyfori .== g for g in unique_part]
+    
+    # 2. Itera su ogni riga dell'array 2D
+    for (t, row) in enumerate(A)
+        # .weights contiene i conteggi per ogni bin.
+        for k =1:nkeys
+            #tid = tileData.tiles_idcs[k]
+            #idcs_in = tileData.idcs_in_tile[tid]
+            ma = whichids[k]
+
+            means_matr[t,k] = _mean(@view(row[ma]))
+        end
+    end
+    
+    return means_matr, unique_part
 end
